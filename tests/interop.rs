@@ -1,12 +1,10 @@
-use cuckoofilter::{CuckooFilter, ExportedCuckooFilter};
-
-use std::collections::hash_map::DefaultHasher;
+use cuckoofilter::{CuckooFilter, BuildHasherStd};
 
 #[test]
 fn interoperability() {
     let total_items = 1_000_000;
 
-    let mut filter = CuckooFilter::<DefaultHasher>::with_capacity(total_items);
+    let mut filter = CuckooFilter::with_capacity(BuildHasherStd::default(), total_items);
 
     let mut num_inserted: u64 = 0;
     // Fit as many values in as possible, count how many made it in.
@@ -19,10 +17,10 @@ fn interoperability() {
 
     // Export the fingerprint data stored in the filter,
     // along with the filter's current length.
-    let store: ExportedCuckooFilter = filter.export();
+    let store = filter.export();
 
     // Create a new filter using the `recover` method and the values previously exported.
-    let recovered_filter = CuckooFilter::<DefaultHasher>::from(store);
+    let recovered_filter = CuckooFilter::from((store.0.clone(), store.1));
 
     // The range 0..num_inserted are all known to be in the filter.
     // The filters shouldn't return false negatives, and therefore they should all be contained.

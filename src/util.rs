@@ -1,6 +1,6 @@
-use crate::bucket::{Fingerprint, FINGERPRINT_SIZE};
+use crate::{bucket::{Fingerprint, FINGERPRINT_SIZE}, CuckooBuildHasher};
 
-use std::hash::{Hash, Hasher};
+use std::hash::{Hash, Hasher, BuildHasher};
 
 use byteorder::{BigEndian, WriteBytesExt};
 
@@ -14,8 +14,8 @@ pub struct FaI {
     pub i2: usize,
 }
 
-fn get_hash<T: ?Sized + Hash, H: Hasher + Default>(data: &T) -> (u32, u32) {
-    let mut hasher = <H as Default>::default();
+fn get_hash<T: ?Sized + Hash, H: CuckooBuildHasher>(hash_builder: &H, data: &T) -> (u32, u32) {
+    let mut hasher = hash_builder.build_hasher();
     data.hash(&mut hasher);
     let result = hasher.finish();
 
@@ -24,15 +24,15 @@ fn get_hash<T: ?Sized + Hash, H: Hasher + Default>(data: &T) -> (u32, u32) {
     ((result >> 32) as u32, result as u32)
 }
 
-pub fn get_alt_index<H: Hasher + Default>(fp: Fingerprint, i: usize) -> usize {
-    let (_, index_hash) = get_hash::<_, H>(&fp.data);
+pub fn get_alt_index<H: CuckooBuildHasher>(hash_builder: &H, fp: Fingerprint, i: usize) -> usize {
+    let (_, index_hash) = get_hash(hash_builder, &fp.data);
     let alt_i = index_hash as usize;
     (i ^ alt_i) as usize
 }
 
 impl FaI {
-    fn from_data<T: ?Sized + Hash, H: Hasher + Default>(data: &T) -> Self {
-        let (fp_hash, index_hash) = get_hash::<_, H>(data);
+    fn from_data<T: ?Sized + Hash, H: CuckooBuildHasher>(hash_builder: &H, data: &T) -> Self {
+        let (fp_hash, index_hash) = get_hash(hash_builder, data);
 
         let mut fp_hash_arr = [0; FINGERPRINT_SIZE];
         let _ = (&mut fp_hash_arr[..]).write_u32::<BigEndian>(fp_hash);
@@ -54,7 +54,7 @@ impl FaI {
         }
 
         let i1 = index_hash as usize;
-        let i2 = get_alt_index::<H>(fp, i1);
+        let i2 = get_alt_index::<H>(hash_builder, fp, i1);
         Self { fp, i1, i2 }
     }
 
@@ -67,24 +67,26 @@ impl FaI {
     }
 }
 
-pub fn get_fai<T: ?Sized + Hash, H: Hasher + Default>(data: &T) -> FaI {
-    FaI::from_data::<_, H>(data)
+pub fn get_fai<T: ?Sized + Hash, H: CuckooBuildHasher>(hash_builder: &H, data: &T) -> FaI {
+    FaI::from_data(hash_builder, data)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::BuildHasherStd;
+
     use super::*;
 
     #[test]
     fn test_fp_and_index() {
-        use std::collections::hash_map::DefaultHasher;
+        let build_hasher = BuildHasherStd::default();
         let data = "seif";
-        let fai = get_fai::<_, DefaultHasher>(data);
+        let fai = get_fai(&build_hasher, data);
         let FaI { fp, i1, i2 } = fai;
-        let i11 = get_alt_index::<DefaultHasher>(fp, i2);
+        let i11 = get_alt_index(&build_hasher, fp, i2);
         assert_eq!(i11, i1);
 
-        let i22 = get_alt_index::<DefaultHasher>(fp, i11);
+        let i22 = get_alt_index(&build_hasher, fp, i11);
         assert_eq!(i22, i2);
     }
 }

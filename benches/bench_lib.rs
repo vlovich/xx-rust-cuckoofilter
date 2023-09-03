@@ -33,14 +33,15 @@ fn get_words() -> String {
     contents
 }
 
-fn perform_insertions<H: std::hash::Hasher + Default>(b: &mut test::Bencher) {
+fn perform_insertions<H: CuckooBuildHasher + Default>(b: &mut test::Bencher) {
     let contents = get_words();
     let split: Vec<&str> = contents.split("\n").take(1000).collect();
-    let mut cf = CuckooFilter::<H>::with_capacity(split.len() * 2);
+    let mut cf = CuckooFilter::with_capacity(H::default(), split.len() * 2);
 
     b.iter(|| {
+        cf.clear();
         for s in &split {
-            black_box(cf.test_and_add(s).ok());
+            black_box(cf.add(s).ok());
         }
     });
 }
@@ -64,21 +65,21 @@ fn bench_clear(b: &mut test::Bencher) {
 #[cfg(feature = "farmhash")]
 #[bench]
 fn bench_insertion_farmhash(b: &mut test::Bencher) {
-    perform_insertions::<farmhash::FarmHasher>(b);
+    perform_insertions::<BuildHasherFarmhash>(b);
 }
 
 #[cfg(feature = "fnv")]
 #[bench]
 fn bench_insertion_fnv(b: &mut test::Bencher) {
-    perform_insertions::<fnv::FnvHasher>(b);
+    perform_insertions::<BuildHasherFnv>(b);
 }
 
 #[bench]
 fn bench_insertion_default(b: &mut test::Bencher) {
-    perform_insertions::<std::collections::hash_map::DefaultHasher>(b);
+    perform_insertions::<BuildHasherStd>(b);
 }
 
 #[bench]
 fn bench_insertion_xxh3(b: &mut test::Bencher) {
-    perform_insertions::<xxhash_rust::xxh3::Xxh3>(b);
+    perform_insertions::<DefaultBuildHasherXxh3>(b);
 }

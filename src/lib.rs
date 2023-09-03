@@ -18,22 +18,25 @@
 
 mod bucket;
 mod util;
+mod hashes;
 
 use crate::bucket::{Bucket, Fingerprint, BUCKET_SIZE, FINGERPRINT_SIZE};
 use crate::util::{get_alt_index, get_fai, FaI};
 
 use std::cmp;
-use std::collections::hash_map::DefaultHasher;
 use std::error::Error as StdError;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::iter::repeat;
-use std::marker::PhantomData;
 use std::mem;
 
 use rand::Rng;
+
+pub use hashes::*;
+
 #[cfg(feature = "serde_support")]
 use serde_derive::{Deserialize, Serialize};
+use xxhash_rust::xxh3::{Xxh3, xxh3_64_with_secret, xxh3_64};
 
 /// If insertion fails, we will retry this many times.
 pub const MAX_REBUCKET: u32 = 500;
@@ -57,6 +60,7 @@ impl StdError for CuckooError {
         "Not enough space to store this item, rebucketing failed."
     }
 }
+
 
 /// A cuckoo filter class exposes a Bloomier filter interface,
 /// providing methods of add, delete, contains.
@@ -107,31 +111,31 @@ impl StdError for CuckooError {
 /// assert!(cf.is_empty());
 ///
 /// ```
-pub struct CuckooFilter<H> {
+pub struct CuckooFilter<H> where H: CuckooBuildHasher {
     buckets: Box<[Bucket]>,
     len: usize,
-    _hasher: std::marker::PhantomData<H>,
+    hash_builder: H,
 }
 
-impl Default for CuckooFilter<DefaultHasher> {
+impl Default for CuckooFilter<BuildHasherStd> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl CuckooFilter<DefaultHasher> {
+impl CuckooFilter<BuildHasherStd> {
     /// Construct a CuckooFilter with default capacity and hasher.
     pub fn new() -> Self {
-        Self::with_capacity(DEFAULT_CAPACITY)
+        Self::with_capacity(BuildHasherStd::default(), DEFAULT_CAPACITY)
     }
 }
 
 impl<H> CuckooFilter<H>
 where
-    H: Hasher + Default,
+    H: CuckooBuildHasher,
 {
     /// Constructs a Cuckoo Filter with a given max capacity
-    pub fn with_capacity(cap: usize) -> Self {
+    pub fn with_capacity(hash_builder: H, cap: usize) -> Self {
         let capacity = cmp::max(1, cap.next_power_of_two() / BUCKET_SIZE);
 
         Self {
@@ -140,7 +144,7 @@ where
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
             len: 0,
-            _hasher: PhantomData,
+            hash_builder,
         }
     }
 
@@ -148,12 +152,12 @@ where
     /// Particularly useful if you have multiple filters with the same parameters and want
     /// to test existence.
     pub fn fingerprint<T: ?Sized + Hash>(&self, data: &T) -> FaI {
-        get_fai::<T, H>(data)
+        get_fai(&self.hash_builder, data)
     }
 
     /// Checks if `data` is in the filter.
     pub fn contains<T: ?Sized + Hash>(&self, data: &T) -> bool {
-        self.contains_fingerprint(&get_fai::<T, H>(data))
+        self.contains_fingerprint(&get_fai(&self.hash_builder, data))
     }
 
     /// Checks if the given fingeprint is in the filter.
@@ -181,7 +185,7 @@ where
     /// removed. This might improve in the future.
     #[inline(always)]
     pub fn add<T: ?Sized + Hash>(&mut self, data: &T) -> Result<(), CuckooError> {
-        self.add_fingerprint(&get_fai::<T, H>(data))
+        self.add_fingerprint(&get_fai(&self.hash_builder, data))
     }
 
     /// Adds the fingerprint to the filter. Same behavior as `add`, just bypasses
@@ -201,7 +205,7 @@ where
                 let loc = &mut self.buckets[i % len].buffer[rng.gen_range(0, BUCKET_SIZE)];
                 other_fp = *loc;
                 *loc = fp;
-                i = get_alt_index::<H>(other_fp, i);
+                i = get_alt_index(&self.hash_builder, other_fp, i);
             }
             if self.put(other_fp, i) {
                 return Ok(());
@@ -222,7 +226,7 @@ where
     /// Returns `Ok(true)` if `data` was not yet present in the filter and added
     /// successfully.
     pub fn test_and_add<T: ?Sized + Hash>(&mut self, data: &T) -> Result<bool, CuckooError> {
-        let fai = get_fai::<T, H>(data);
+        let fai = get_fai::<T, H>(&self.hash_builder, data);
         if self.contains_fingerprint(&fai) {
             Ok(false)
         } else {
@@ -239,7 +243,7 @@ where
     /// Exports fingerprints in all buckets, along with the filter's length for storage.
     /// The filter can be recovered by passing the `ExportedCuckooFilter` struct to the
     /// `from` method of `CuckooFilter`.
-    pub fn export(&self) -> ExportedCuckooFilter {
+    pub fn export(&self) -> (&H, ExportedCuckooFilter) {
         self.into()
     }
 
@@ -258,7 +262,7 @@ where
     /// filter before.
     #[inline(always)]
     pub fn delete<T: ?Sized + Hash>(&mut self, data: &T) -> bool {
-        self.delete_fingerprint(&get_fai::<T, H>(data))
+        self.delete_fingerprint(&get_fai(&self.hash_builder, data))
     }
 
     pub fn delete_fingerprint(&mut self, fai: &FaI) -> bool {
@@ -316,7 +320,7 @@ pub struct ExportedCuckooFilter {
     pub length: usize,
 }
 
-impl<H> From<ExportedCuckooFilter> for CuckooFilter<H> {
+impl<H> From<(H, ExportedCuckooFilter)> for CuckooFilter<H> where H: CuckooBuildHasher {
     /// Converts a simplified representation of a filter used for export to a
     /// fully functioning version.
     ///
@@ -328,7 +332,8 @@ impl<H> From<ExportedCuckooFilter> for CuckooFilter<H> {
     /// * `length` - The number of valid fingerprints inside the `CuckooFilter`.
     /// This value is used as a time saving method, otherwise all fingerprints
     /// would need to be checked for equivalence against the null pattern.
-    fn from(exported: ExportedCuckooFilter) -> Self {
+    fn from(serialized: (H, ExportedCuckooFilter)) -> Self {
+        let (hash_builder, exported) = serialized;
         // Assumes that the `BUCKET_SIZE` and `FINGERPRINT_SIZE` constants do not change.
         Self {
             buckets: exported
@@ -338,21 +343,43 @@ impl<H> From<ExportedCuckooFilter> for CuckooFilter<H> {
                 .collect::<Vec<_>>()
                 .into_boxed_slice(),
             len: exported.length,
-            _hasher: PhantomData,
+            hash_builder,
         }
     }
 }
 
-impl<H> From<&CuckooFilter<H>> for ExportedCuckooFilter
+impl<'a, H> From<&'a CuckooFilter<H>> for (&'a H, ExportedCuckooFilter)
 where
-    H: Hasher + Default,
+    H: CuckooBuildHasher,
 {
     /// Converts a `CuckooFilter` into a simplified version which can be serialized and stored
     /// for later use.
-    fn from(cuckoo: &CuckooFilter<H>) -> Self {
-        Self {
-            values: cuckoo.values(),
-            length: cuckoo.len(),
-        }
+    fn from(cuckoo: &CuckooFilter<H>) -> (&H, ExportedCuckooFilter) {
+        (
+            &cuckoo.hash_builder,
+            ExportedCuckooFilter {
+                values: cuckoo.values(),
+                length: cuckoo.len(),
+            }
+        )
+    }
+}
+
+impl<H> From<CuckooFilter<H>> for (H, ExportedCuckooFilter)
+where
+    H: CuckooBuildHasher,
+{
+    /// Converts a `CuckooFilter` into a simplified version which can be serialized and stored
+    /// for later use.
+    fn from(cuckoo: CuckooFilter<H>) -> (H, ExportedCuckooFilter) {
+        let values = cuckoo.values();
+        let length = cuckoo.len();
+        (
+            cuckoo.hash_builder,
+            ExportedCuckooFilter {
+                values: values,
+                length: length,
+            }
+        )
     }
 }

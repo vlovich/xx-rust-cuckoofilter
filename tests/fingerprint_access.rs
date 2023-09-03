@@ -1,13 +1,11 @@
-use cuckoofilter::CuckooFilter;
-
-use std::collections::hash_map::DefaultHasher;
+use cuckoofilter::{CuckooFilter, BuildHasherStd};
 
 #[test]
 fn fingerprints() {
     let total_items = 1_000_000;
 
-    let mut filter1 = CuckooFilter::<DefaultHasher>::with_capacity(total_items);
-    let mut filter2 = CuckooFilter::<DefaultHasher>::with_capacity(total_items);
+    let mut filter1 = CuckooFilter::with_capacity(BuildHasherStd::default(), total_items);
+    let mut filter2 = CuckooFilter::with_capacity(BuildHasherStd::default(), total_items);
     filter1.add(&1).unwrap();
     filter1.add(&2).unwrap();
     filter2.add(&1).unwrap();

@@ -1,6 +1,4 @@
-use cuckoofilter::CuckooFilter;
-
-use std::collections::hash_map::DefaultHasher;
+use cuckoofilter::{CuckooFilter, BuildHasherStd};
 
 // Modelled after
 // https://github.com/efficient/cuckoofilter/blob/master/example/test.cc
@@ -10,7 +8,7 @@ use std::collections::hash_map::DefaultHasher;
 fn false_positive_rate() {
     let total_items = 1_000_000;
 
-    let mut filter = CuckooFilter::<DefaultHasher>::with_capacity(total_items);
+    let mut filter = CuckooFilter::with_capacity(BuildHasherStd::default(), total_items);
 
     let mut num_inserted: u64 = 0;
     // We might not be able to get all items in, but still there should be enough
