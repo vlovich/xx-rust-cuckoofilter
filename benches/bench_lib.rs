@@ -35,13 +35,13 @@ fn get_words() -> String {
 
 fn perform_insertions<H: CuckooBuildHasher + Default>(b: &mut test::Bencher) {
     let contents = get_words();
-    let split: Vec<&str> = contents.split("\n").take(1000).collect();
+    let split: Vec<&str> = contents.split("\n").take(10000).collect();
     let mut cf = CuckooFilter::with_capacity(H::default(), split.len() * 2);
 
     b.iter(|| {
         cf.clear();
         for s in &split {
-            black_box(cf.add(s).ok());
+            black_box(cf.add_slice(s.as_bytes()).ok());
         }
     });
 }

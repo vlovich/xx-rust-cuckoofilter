@@ -36,6 +36,7 @@ pub use hashes::*;
 
 #[cfg(feature = "serde_support")]
 use serde_derive::{Deserialize, Serialize};
+use util::get_slice_fai;
 use xxhash_rust::xxh3::{Xxh3, xxh3_64_with_secret, xxh3_64};
 
 /// If insertion fails, we will retry this many times.
@@ -151,13 +152,25 @@ where
     /// Compute the fingerprint for the given datum that can be used to access the filter.
     /// Particularly useful if you have multiple filters with the same parameters and want
     /// to test existence.
+    #[inline(always)]
     pub fn fingerprint<T: ?Sized + Hash>(&self, data: &T) -> FaI {
         get_fai(&self.hash_builder, data)
     }
 
+    #[inline(always)]
+    pub fn fingerprint_slice(&self, data: &[u8]) -> FaI {
+        get_slice_fai(&self.hash_builder, data)
+    }
+
     /// Checks if `data` is in the filter.
+    #[inline(always)]
     pub fn contains<T: ?Sized + Hash>(&self, data: &T) -> bool {
         self.contains_fingerprint(&get_fai(&self.hash_builder, data))
+    }
+
+    #[inline(always)]
+    pub fn contains_slice(&self, data: &[u8]) -> bool {
+        self.contains_fingerprint(&get_slice_fai(&self.hash_builder, data))
     }
 
     /// Checks if the given fingeprint is in the filter.
@@ -186,6 +199,11 @@ where
     #[inline(always)]
     pub fn add<T: ?Sized + Hash>(&mut self, data: &T) -> Result<(), CuckooError> {
         self.add_fingerprint(&get_fai(&self.hash_builder, data))
+    }
+
+    #[inline(always)]
+    pub fn add_slice(&mut self, data: &[u8]) -> Result<(), CuckooError> {
+        self.add_fingerprint(&get_slice_fai(&self.hash_builder, data))
     }
 
     /// Adds the fingerprint to the filter. Same behavior as `add`, just bypasses
@@ -225,12 +243,21 @@ where
     /// Adds `data` to the filter if it does not exist in the filter yet.
     /// Returns `Ok(true)` if `data` was not yet present in the filter and added
     /// successfully.
+    #[inline(always)]
     pub fn test_and_add<T: ?Sized + Hash>(&mut self, data: &T) -> Result<bool, CuckooError> {
-        let fai = get_fai::<T, H>(&self.hash_builder, data);
-        if self.contains_fingerprint(&fai) {
+        self.test_and_add_fingerprint(&get_fai(&self.hash_builder, data))
+    }
+
+    #[inline(always)]
+    pub fn test_and_add_slice(&mut self, data: &[u8]) -> Result<bool, CuckooError> {
+        self.test_and_add_fingerprint(&get_slice_fai(&self.hash_builder, data))
+    }
+
+    pub fn test_and_add_fingerprint(&mut self, fai: &FaI) -> Result<bool, CuckooError> {
+        if self.contains_fingerprint(fai) {
             Ok(false)
         } else {
-            self.add_fingerprint(&fai).map(|_| true)
+            self.add_fingerprint(fai).map(|_| true)
         }
     }
 
@@ -263,6 +290,11 @@ where
     #[inline(always)]
     pub fn delete<T: ?Sized + Hash>(&mut self, data: &T) -> bool {
         self.delete_fingerprint(&get_fai(&self.hash_builder, data))
+    }
+
+    #[inline(always)]
+    pub fn delete_slice(&mut self, data: &[u8]) -> bool {
+        self.delete_fingerprint(&get_slice_fai(&self.hash_builder, data))
     }
 
     pub fn delete_fingerprint(&mut self, fai: &FaI) -> bool {

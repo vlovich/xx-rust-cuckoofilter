@@ -43,42 +43,7 @@ pub trait CuckooBuildHasher {
     /// implementation of [`Hash`].  The way to create a combined hash of
     /// multiple values is to call [`Hash::hash`] multiple times using the same
     /// [`Hasher`], not to call this method repeatedly and combine the results.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use std::cmp::{max, min};
-    /// use std::hash::{BuildHasher, Hash, Hasher};
-    /// struct OrderAmbivalentPair<T: Ord>(T, T);
-    /// impl<T: Ord + Hash> Hash for OrderAmbivalentPair<T> {
-    ///     fn hash<H: Hasher>(&self, hasher: &mut H) {
-    ///         min(&self.0, &self.1).hash(hasher);
-    ///         max(&self.0, &self.1).hash(hasher);
-    ///     }
-    /// }
-    ///
-    /// // Then later, in a `#[test]` for the type...
-    /// let bh = std::collections::hash_map::RandomState::new();
-    /// assert_eq!(
-    ///     bh.hash_one(OrderAmbivalentPair(1, 2)),
-    ///     bh.hash_one(OrderAmbivalentPair(2, 1))
-    /// );
-    /// assert_eq!(
-    ///     bh.hash_one(OrderAmbivalentPair(10, 2)),
-    ///     bh.hash_one(&OrderAmbivalentPair(2, 10))
-    /// );
-    /// ```
-    fn hash_one<T: Hash>(&self, x: T) -> u64
-    where
-        Self: Sized,
-        Self::Hasher: Hasher,
-    {
-        let mut hasher = self.build_hasher();
-        x.hash(&mut hasher);
-        hasher.finish()
-    }
-
-    fn hash_slice(&self, x: &[u8]) -> u64 {
+    fn hash_one_slice(&self, x: &[u8]) -> u64 {
         let mut hasher = self.build_hasher();
         x.hash(&mut hasher);
         hasher.finish()
@@ -126,7 +91,7 @@ impl CuckooBuildHasher for BuildHasherXxh3 {
         Xxh3::with_secret(self.secret)
     }
     
-    fn hash_slice(&self, x: &[u8]) -> u64 {
+    fn hash_one_slice(&self, x: &[u8]) -> u64 {
         xxh3_64_with_secret(x, &self.secret)
     }
 }
@@ -141,7 +106,7 @@ impl CuckooBuildHasher for DefaultBuildHasherXxh3 {
         Xxh3::default()
     }
 
-    fn hash_slice(&self, x: &[u8]) -> u64 {
+    fn hash_one_slice(&self, x: &[u8]) -> u64 {
         xxh3_64(x)
     }
 }
