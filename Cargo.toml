@@ -1,12 +1,17 @@
 [package]
-name = "cuckoofilter"
-version = "0.5.0"
+name = "xx-cuckoofilter"
+version = "0.6.0"
 authors = [
   "Seif Lotfy <seif.lotfy@gmail.com>",
   "Seif Lotfy <seif@axiom.co>",
   "Florian Jacob <accounts+git@florianjacob.de>",
   "The cuckoofilter contributors",
+  "Vitali Lovich <vlovich@gmail.com>",
 ]
+
+[[bench]]
+name = "bench_lib"
+harness = false
 
 # A short blurb about the package. This is not rendered in any format when
 # uploaded to crates.io (aka this is not markdown)
@@ -14,7 +19,7 @@ description = "Cuckoo Filter: Practically Better Than Bloom"
 
 # These URLs point to more information about the repository
 homepage = "http://axiom.co"
-repository = "https://github.com/axiomhq/rust-cuckoofilter"
+repository = "https://github.com/vlovich/xx-rust-cuckoofilter"
 
 # This points to a file in the repository (relative to this Cargo.toml). The
 # contents of this file are stored and indexed in the registry.
@@ -47,4 +52,5 @@ farmhash = {version = "1.1.5", optional = true}
 xxhash-rust = {version = "0.8", default-features = false, features = ["xxh3"]}
 
 [dev-dependencies]
+criterion = {version = "0.5", features = ["html_reports"]}
 serde_json = "1.0"

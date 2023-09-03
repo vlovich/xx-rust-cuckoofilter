@@ -1,10 +1,3 @@
-#[cfg(feature = "farmhash")]
-extern crate farmhash;
-#[cfg(feature = "fnv")]
-extern crate fnv;
-
-extern crate xxhash_rust;
-
 use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
 
 use xxhash_rust::xxh3::{Xxh3, xxh3_64, xxh3_64_with_secret};
@@ -53,7 +46,7 @@ pub trait CuckooBuildHasher {
 // Std
 impl CuckooHasher for DefaultHasher {}
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BuildHasherStd {}
 impl CuckooBuildHasher for BuildHasherStd {
     type Hasher = DefaultHasher;
@@ -74,6 +67,7 @@ impl CuckooBuildHasher for &BuildHasherStd {
 // Xxh3
 impl CuckooHasher for Xxh3 {}
 
+#[derive(Clone)]
 pub struct BuildHasherXxh3 {
     secret: [u8; XXH3_DEFAULT_SECRET_SIZE],
 }
@@ -97,7 +91,7 @@ impl CuckooBuildHasher for BuildHasherXxh3 {
 }
 
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct DefaultBuildHasherXxh3 {}
 impl CuckooBuildHasher for DefaultBuildHasherXxh3 {
     type Hasher = Xxh3;
@@ -116,7 +110,7 @@ impl CuckooBuildHasher for DefaultBuildHasherXxh3 {
 impl CuckooHasher for farmhash::FarmHasher {}
 
 #[cfg(feature = "farmhash")]
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BuildHasherFarmhash {}
 
 #[cfg(feature = "farmhash")]
@@ -133,7 +127,7 @@ impl CuckooBuildHasher for BuildHasherFarmhash {
 impl CuckooHasher for fnv::FnvHasher {}
 
 #[cfg(feature = "fnv")]
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct BuildHasherFnv {}
 
 #[cfg(feature = "fnv")]

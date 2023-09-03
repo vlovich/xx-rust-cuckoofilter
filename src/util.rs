@@ -1,6 +1,6 @@
 use crate::{bucket::{Fingerprint, FINGERPRINT_SIZE}, CuckooBuildHasher};
 
-use std::hash::{Hash, Hasher, BuildHasher};
+use std::hash::{Hash, Hasher};
 
 use byteorder::{BigEndian, WriteBytesExt};
 

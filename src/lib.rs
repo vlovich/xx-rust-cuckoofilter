@@ -2,19 +2,22 @@
 //!
 //! # Usage
 //!
-//! This crate is [on crates.io](https://crates.io/crates/cuckoofilter) and can be
-//! used by adding `cuckoofilter` to the dependencies in your project's `Cargo.toml`.
+//! This crate is [on crates.io](https://crates.io/crates/xx-cuckoofilter) and can be
+//! used by adding `xx-cuckoofilter` to the dependencies in your project's `Cargo.toml`.
 //!
 //! ```toml
 //! [dependencies]
-//! cuckoofilter = "0.3"
+//! xx-cuckoofilter = "0.6"
 //! ```
-//!
-//! And this in your crate root:
-//!
-//! ```rust
-//! extern crate cuckoofilter;
-//! ```
+
+extern crate rand;
+extern crate xxhash_rust;
+extern crate byteorder;
+
+#[cfg(feature = "farmhash")]
+extern crate farmhash;
+#[cfg(feature = "fnv")]
+extern crate fnv;
 
 mod bucket;
 mod util;
@@ -26,7 +29,7 @@ use crate::util::{get_alt_index, get_fai, FaI};
 use std::cmp;
 use std::error::Error as StdError;
 use std::fmt;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::iter::repeat;
 use std::mem;
 
@@ -37,7 +40,6 @@ pub use hashes::*;
 #[cfg(feature = "serde_support")]
 use serde_derive::{Deserialize, Serialize};
 use util::get_slice_fai;
-use xxhash_rust::xxh3::{Xxh3, xxh3_64_with_secret, xxh3_64};
 
 /// If insertion fails, we will retry this many times.
 pub const MAX_REBUCKET: u32 = 500;
@@ -69,10 +71,10 @@ impl StdError for CuckooError {
 /// # Examples
 ///
 /// ```
-/// extern crate cuckoofilter;
+/// extern crate xx_cuckoofilter;
 ///
 /// let words = vec!["foo", "bar", "xylophone", "milagro"];
-/// let mut cf = cuckoofilter::CuckooFilter::new();
+/// let mut cf = xx_cuckoofilter::CuckooFilter::new();
 ///
 /// let mut insertions = 0;
 /// for s in &words {
@@ -112,6 +114,7 @@ impl StdError for CuckooError {
 /// assert!(cf.is_empty());
 ///
 /// ```
+#[derive(Clone)]
 pub struct CuckooFilter<H> where H: CuckooBuildHasher {
     buckets: Box<[Bucket]>,
     len: usize,
