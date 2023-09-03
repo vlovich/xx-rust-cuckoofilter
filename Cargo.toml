@@ -44,6 +44,8 @@ serde_support = ["serde", "serde_derive", "serde_bytes"]
 [dependencies]
 byteorder = "1.3.4"
 rand = "0.7.3"
+rand_core = "0.6"
+wyhash = "0.5"
 serde = {version = "1.0.114", optional = true}
 serde_derive = {version = "1.0.114", optional = true}
 serde_bytes = {version = "0.11.5", optional = true}

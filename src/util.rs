@@ -3,6 +3,7 @@ use crate::{bucket::{Fingerprint, FINGERPRINT_SIZE}, CuckooBuildHasher};
 use std::hash::{Hash, Hasher};
 
 use byteorder::{BigEndian, WriteBytesExt};
+use rand_core::RngCore;
 
 // A struct combining *F*ingerprint *a*nd *I*ndexes,
 // to have a return type with named fields
@@ -74,8 +75,10 @@ impl FaI {
         Self::from_hash(hash_builder, fp_hash, index_hash)
     }
 
-    pub fn random_index<R: ::rand::Rng>(&self, r: &mut R) -> usize {
-        if r.gen() {
+    pub fn random_index<R: RngCore>(&self, r: &mut R) -> usize {
+        let mut bool = [0u8];
+        r.fill_bytes(&mut bool);
+        if bool[0] == 0 {
             self.i1
         } else {
             self.i2

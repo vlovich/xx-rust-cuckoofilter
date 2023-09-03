@@ -11,6 +11,8 @@
 //! ```
 
 extern crate rand;
+extern crate rand_core;
+extern crate wyhash;
 extern crate xxhash_rust;
 extern crate byteorder;
 
@@ -33,11 +35,12 @@ use std::hash::Hash;
 use std::iter::repeat;
 use std::mem;
 
-use rand::Rng;
+use rand::{Rng, thread_rng};
+use rand_core::{SeedableRng, RngCore};
+use wyhash::WyRng;
 
 pub use hashes::*;
 
-use rand::rngs::ThreadRng;
 #[cfg(feature = "serde_support")]
 use serde_derive::{Deserialize, Serialize};
 use util::get_slice_fai;
@@ -120,7 +123,7 @@ pub struct CuckooFilter<H> where H: CuckooBuildHasher {
     buckets: Box<[Bucket]>,
     len: usize,
     hash_builder: H,
-    rng: ThreadRng,
+    rng: WyRng,
 }
 
 impl Default for CuckooFilter<BuildHasherStd> {
@@ -151,7 +154,7 @@ where
                 .into_boxed_slice(),
             len: 0,
             hash_builder,
-            rng: rand::thread_rng(),
+            rng: WyRng::seed_from_u64(thread_rng().gen()),
         }
     }
 
@@ -224,8 +227,8 @@ where
         let mut fp = fai.fp;
         for _ in 0..MAX_REBUCKET {
             let other_fp;
-            {
-                let loc = &mut self.buckets[i % len].buffer[self.rng.gen_range(0, BUCKET_SIZE)];
+            {                
+                let loc = &mut self.buckets[i % len].buffer[self.rng.next_u32() as usize % BUCKET_SIZE];
                 other_fp = *loc;
                 *loc = fp;
                 i = get_alt_index(&self.hash_builder, other_fp, i);
@@ -381,7 +384,7 @@ impl<H> From<(H, ExportedCuckooFilter)> for CuckooFilter<H> where H: CuckooBuild
                 .into_boxed_slice(),
             len: exported.length,
             hash_builder,
-            rng: rand::thread_rng(),
+            rng: WyRng::seed_from_u64(thread_rng().gen()),
         }
     }
 }
