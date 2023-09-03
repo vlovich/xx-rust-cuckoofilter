@@ -9,8 +9,8 @@ extern crate rand;
 extern crate test;
 
 use self::cuckoofilter::*;
-use std::error::Error;
 use std::fs::File;
+use std::hint::black_box;
 use std::io::prelude::*;
 use std::path::Path;
 
@@ -22,13 +22,13 @@ fn get_words() -> String {
     let mut file = match File::open(&path) {
         // The `description` method of `io::Error` returns a string that
         // describes the error
-        Err(why) => panic!("couldn't open {}: {}", display, Error::description(&why)),
+        Err(why) => panic!("couldn't open {}: {}", display, why),
         Ok(file) => file,
     };
 
     let mut contents = String::new();
     if let Err(why) = file.read_to_string(&mut contents) {
-        panic!("couldn't read {}: {}", display, Error::description(&why));
+        panic!("couldn't read {}: {}", display, why);
     }
     contents
 }
@@ -40,7 +40,7 @@ fn perform_insertions<H: std::hash::Hasher + Default>(b: &mut test::Bencher) {
 
     b.iter(|| {
         for s in &split {
-            test::black_box(cf.test_and_add(s).unwrap());
+            black_box(cf.test_and_add(s).ok());
         }
     });
 }
@@ -48,16 +48,16 @@ fn perform_insertions<H: std::hash::Hasher + Default>(b: &mut test::Bencher) {
 #[bench]
 fn bench_new(b: &mut test::Bencher) {
     b.iter(|| {
-        test::black_box(CuckooFilter::new());
+        black_box(CuckooFilter::new());
     });
 }
 
 #[bench]
 fn bench_clear(b: &mut test::Bencher) {
-    let mut cf = test::black_box(CuckooFilter::new());
+    let mut cf = black_box(CuckooFilter::new());
 
     b.iter(|| {
-        test::black_box(cf.clear());
+        black_box(cf.clear());
     });
 }
 
@@ -76,4 +76,9 @@ fn bench_insertion_fnv(b: &mut test::Bencher) {
 #[bench]
 fn bench_insertion_default(b: &mut test::Bencher) {
     perform_insertions::<std::collections::hash_map::DefaultHasher>(b);
+}
+
+#[bench]
+fn bench_insertion_xxh3(b: &mut test::Bencher) {
+    perform_insertions::<xxhash_rust::xxh3::Xxh3>(b);
 }
