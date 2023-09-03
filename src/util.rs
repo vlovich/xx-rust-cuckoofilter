@@ -7,6 +7,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 // A struct combining *F*ingerprint *a*nd *I*ndexes,
 // to have a return type with named fields
 // instead of a tuple with unnamed fields.
+#[derive(Copy, Clone)]
 pub struct FaI {
     pub fp: Fingerprint,
     pub i1: usize,

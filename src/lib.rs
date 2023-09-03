@@ -144,13 +144,27 @@ where
         }
     }
 
+    /// Compute the fingerprint for the given datum that can be used to access the filter.
+    /// Particularly useful if you have multiple filters with the same parameters and want
+    /// to test existence.
+    pub fn fingerprint<T: ?Sized + Hash>(&self, data: &T) -> FaI {
+        get_fai::<T, H>(data)
+    }
+
     /// Checks if `data` is in the filter.
     pub fn contains<T: ?Sized + Hash>(&self, data: &T) -> bool {
-        let FaI { fp, i1, i2 } = get_fai::<T, H>(data);
+        self.contains_fingerprint(&get_fai::<T, H>(data))
+    }
+
+    /// Checks if the given fingeprint is in the filter.
+    /// This can be useful if you're checking the existence of the same key
+    /// in multiple filters and want to amortize the cost of the fingerprint
+    /// computation.
+    pub fn contains_fingerprint(&self, fai: &FaI) -> bool {
         let len = self.buckets.len();
-        self.buckets[i1 % len]
-            .get_fingerprint_index(fp)
-            .or_else(|| self.buckets[i2 % len].get_fingerprint_index(fp))
+        self.buckets[fai.i1 % len]
+            .get_fingerprint_index(fai.fp)
+            .or_else(|| self.buckets[fai.i2 % len].get_fingerprint_index(fai.fp))
             .is_some()
     }
 
@@ -165,8 +179,15 @@ where
     /// **Note:** When this returns `NotEnoughSpace`, the element given was
     /// actually added to the filter, but some random *other* element was
     /// removed. This might improve in the future.
+    #[inline(always)]
     pub fn add<T: ?Sized + Hash>(&mut self, data: &T) -> Result<(), CuckooError> {
-        let fai = get_fai::<T, H>(data);
+        self.add_fingerprint(&get_fai::<T, H>(data))
+    }
+
+    /// Adds the fingerprint to the filter. Same behavior as `add`, just bypasses
+    /// the fingerprint computation which lets you insert the same value into multiple
+    /// filters cheaply.
+    pub fn add_fingerprint(&mut self, fai: &FaI) -> Result<(), CuckooError> {
         if self.put(fai.fp, fai.i1) || self.put(fai.fp, fai.i2) {
             return Ok(());
         }
@@ -201,14 +222,16 @@ where
     /// Returns `Ok(true)` if `data` was not yet present in the filter and added
     /// successfully.
     pub fn test_and_add<T: ?Sized + Hash>(&mut self, data: &T) -> Result<bool, CuckooError> {
-        if self.contains(data) {
+        let fai = get_fai::<T, H>(data);
+        if self.contains_fingerprint(&fai) {
             Ok(false)
         } else {
-            self.add(data).map(|_| true)
+            self.add_fingerprint(&fai).map(|_| true)
         }
     }
 
     /// Number of items in the filter.
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.len
     }
@@ -226,15 +249,20 @@ where
     }
 
     /// Check if filter is empty
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     /// Deletes `data` from the filter. Returns true if `data` existed in the
     /// filter before.
+    #[inline(always)]
     pub fn delete<T: ?Sized + Hash>(&mut self, data: &T) -> bool {
-        let FaI { fp, i1, i2 } = get_fai::<T, H>(data);
-        self.remove(fp, i1) || self.remove(fp, i2)
+        self.delete_fingerprint(&get_fai::<T, H>(data))
+    }
+
+    pub fn delete_fingerprint(&mut self, fai: &FaI) -> bool {
+        self.remove(fai.fp, fai.i1) || self.remove(fai.fp, fai.i2)
     }
 
     /// Empty all the buckets in a filter and reset the number of items.
