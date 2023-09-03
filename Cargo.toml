@@ -30,7 +30,7 @@ keywords = ["bloomfilter", "cuckoohashing", "cuckoofilter"]
 # be separated with a `/`
 license = "MIT"
 
-edition = "2018"
+edition = "2021"
 
 [features]
 default = []
