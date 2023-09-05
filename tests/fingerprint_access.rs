@@ -1,4 +1,5 @@
-use cuckoofilter::{CuckooFilter, BuildHasherStd};
+extern crate xx_cuckoofilter;
+use xx_cuckoofilter::{CuckooFilter, BuildHasherStd};
 
 #[test]
 fn fingerprints() {

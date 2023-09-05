@@ -1,4 +1,5 @@
-use cuckoofilter::{CuckooFilter, BuildHasherStd};
+extern crate xx_cuckoofilter;
+use xx_cuckoofilter::{CuckooFilter, BuildHasherStd};
 
 // Modelled after
 // https://github.com/efficient/cuckoofilter/blob/master/example/test.cc

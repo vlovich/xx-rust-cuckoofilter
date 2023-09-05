@@ -66,7 +66,7 @@
 //! [cuckoofilter crate]: https://crates.io/crates/cuckoofilter
 //! [milksnake]: https://github.com/getsentry/milksnake
 
-extern crate cuckoofilter;
+extern crate xx_cuckoofilter;
 
 use cuckoofilter::CuckooError;
 use std::collections::hash_map::DefaultHasher;
