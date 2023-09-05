@@ -40,6 +40,7 @@ use rand_core::{SeedableRng, RngCore};
 use wyhash::WyRng;
 
 pub use hashes::*;
+pub use util::FaI as ReusableFingerprint;
 
 #[cfg(feature = "serde_support")]
 use serde_derive::{Deserialize, Serialize};
